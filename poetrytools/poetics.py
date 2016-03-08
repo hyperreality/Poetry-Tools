@@ -46,15 +46,7 @@ def stress(word):
 
 def scanscion(poem):
     poem = tokenize(poem)
-
-    line_stresses = []
-    currline      = 0
-
-    for line in poem:
-        line_stresses.append([])
-        [line_stresses[currline].append(stress(word)) for word in line if word]
-        currline += 1
-
+    line_stresses = [[stress(word)] for word in line if word]
     return line_stresses
 
 def rhymes(w1, w2, level = 2):
@@ -70,6 +62,7 @@ def rhymes(w1, w2, level = 2):
      except KeyError:
          not_in_cmu.append(w2.lower())
          return - 1
+         
      for syllable in syllables:
          for syllable2 in syllables2:
              if syllable2[ - level : ] == syllable[ - level : ]:
@@ -95,7 +88,7 @@ def rhyme_scheme(poem):
                 elif rhymes(word, last_words[i], 2):                    
                     scheme[currline] = scheme[i] = rhyme_notation[currrhyme]
                     rhymed           = True
-        if rhymed == True:
+        if rhymed:
             currrhyme += 1
         currline += 1
    
@@ -161,7 +154,7 @@ def guess_form(poem, verbose = False):
     rhyme_scheme_string, rhyme                             = guess_rhyme_type(poem)
     metrical_scheme_string, num_lines, line_lengths, metre = guess_metre(poem)
 
-    if verbose == True:
+    if verbose:
         print(metrical_scheme_string)
         print(rhyme + " (" + rhyme_scheme_string + ") + " + metre + " = ", end = "")
 
