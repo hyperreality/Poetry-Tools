@@ -10,9 +10,9 @@ setup(name='poetrytools',
       long_description=readme(),
       author='L Tennant',
       author_email='l.tennant@rocketmail.com',
-      url='http://github.com/hyperreality/poetrytools',
+      url='http://github.com/hyperreality/Poetry-Tools',
       license='GPL',
       packages=['poetrytools'],
-      install_requires=[
-          'python-levenshtein',
-      ])
+      install_requires=['python-levenshtein'],
+      include_package_data=True
+)
