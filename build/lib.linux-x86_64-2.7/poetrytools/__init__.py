@@ -1,1 +1,1 @@
-from poetics import *
+from .poetics import *
