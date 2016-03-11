@@ -19,25 +19,22 @@ except:
     with open(os.path.join(os.path.dirname(__file__), 'cmudict/cmudict.json')) as json_file:
         cmu = json.load(json_file)
 
-not_in_cmu = []
-
 def elided_d(word):
-    if word[ - 2 : ] == "'d":
-        return word[ : - 2] + "ed"
+    if word[-2:] == "'d":
+        return word[:-2] + "ed"
     return word
 
 def tokenize(poem):
     tokens = []
     for line in poem.split('\n'):
-        line       = line.replace('-', ' ') 
+        line       = line.replace('-', ' ') # need to find a better tokenizer, but this works for now
         no_hyphens = line.replace('—', ' ') 
         cleaned    = re.sub(r'[^0-9a-zA-Z\s\']', '', no_hyphens) # keep apostrophes
         tokens.append([elided_d(word) for word in cleaned.strip().split(' ')])
     return tokens
 
 def stress(word):
-    if word.lower() in not_in_cmu or word.lower() not in cmu:
-        not_in_cmu.append(word.lower())
+    if word.lower() not in cmu:
         return '1' + '0' * (count_syllables(word) - 1) # provisional logic for adding stress is to stress first syllable only
     else:
         pronunciation_string = str(''.join([a for a in min(cmu[word.lower()])]))
@@ -57,30 +54,30 @@ def scanscion(poem):
 
     return line_stresses
 
-def rhymes(w1, w2, level = 2):
-     if w1.lower() in not_in_cmu or w2.lower() in not_in_cmu:
-         return - 1
+def rhymes(w1, w2, level=2, throwError=False):
      try:
          syllables = [' '.join([str(c) for c in lst]) for lst in cmu[w1.lower()]]
      except KeyError:
-         not_in_cmu.append(w1.lower())
-         return - 1
+         if throwError == True:
+             raise KeyError(w1 + ' not found in CMU dictionary')
+         return False
      try:
          syllables2 = [' '.join([str(c) for c in lst]) for lst in cmu[w2.lower()]]
      except KeyError:
-         not_in_cmu.append(w2.lower())
-         return - 1
+         if throwError == True:
+             raise KeyError(w2 + ' not found in CMU dictionary')
+         return False
      for syllable in syllables:
          for syllable2 in syllables2:
-             if syllable2[ - level : ] == syllable[ - level : ]:
-                 return 1
+             if syllable2[-level:] == syllable[-level:]:
+                 return True
              else:
-                 return 0
+                 return False
 
 def rhyme_scheme(poem):
     poem = tokenize(poem)
 
-    last_words = [s[ - 1] for s in poem if s]
+    last_words = [s[-1] for s in poem if s]
     scheme     = ['X'] * len(last_words)
 
     rhyme_notation = list(ascii_lowercase)
@@ -92,7 +89,7 @@ def rhyme_scheme(poem):
             if scheme[i] == 'X' : # if word is not already part of a rhyme scheme
                 if not word:
                     scheme[currline] = ' '
-                elif rhymes(word, last_words[i], 2):                    
+                elif rhymes(word, last_words[i], 2, False):                    
                     scheme[currline] = scheme[i] = rhyme_notation[currrhyme]
                     rhymed           = True
         if rhymed == True:
@@ -127,9 +124,9 @@ def guess_metre(poem):
     z = defaultdict(int)
     for line in joined:
         for v in possible_metres.items():
-            leven = distance(line, v[1])
-            z[v[0]] += leven
-    guessed_metre = min(z, key = z.get) # Minimum Levenshtein selected as best metrical match.
+            levenshtein = distance(line, v[1])
+            z[v[0]] += levenshtein
+    guessed_metre = min(z, key = z.get)
     return joined, num_lines, line_lengths, guessed_metre
 
 def guess_rhyme_type(poem):
@@ -140,20 +137,21 @@ def guess_rhyme_type(poem):
                              'couplets'             : 'aabb ccdd eeff',
                              'alternate rhyme'      : 'abab cdcd efef ghgh',
                              'enclosed rhyme'       : 'abba cddc effe',
-                             'rima'                 : 'ababcbcdc',
+                             'rima'                 : 'ababcbcdcdedefefgfghg',
+                             'rondeau rhyme'        : 'aabba aab C aabba C',
                              'shakespearean sonnet' : 'ababcdcdefefgg',
                              'limerick'             : 'aabba',
                              'no rhyme'             : 'XXXXX'}
 
     z = defaultdict(int)
     for v in possible_rhyme_types.items():
-        expanded = (v[1] * (num_lines // len(v[1]) + 1))[ : num_lines]
-        leven    = distance(joined, expanded)
-        z[v[0]] += leven
-    guessed_rhyme = min(z, key = z.get) # Minimum Levenshtein selected as best metrical match.
+        expanded       = (v[1] * (num_lines // len(v[1]) + 1))[ : num_lines]
+        levenshtein    = distance(joined, expanded)
+        z[v[0]]       += levenshtein
+    guessed_rhyme = min(z, key = z.get)
     return joined, guessed_rhyme
 
-def guess_form(poem, verbose = False):
+def guess_form(poem, verbose=False):
     def within_ranges(line_properties, ranges):
         if all([ranges[i][0] <= line_properties[i] <= ranges[i][1] for i in range(len(ranges))]):
             return True
@@ -190,16 +188,21 @@ def guess_form(poem, verbose = False):
             return 'Shakespearean sonnet'
         return 'sonnet with ' + metre + ' or irregular meter'
 
+    if num_lines == 15:
+
+        return 'rondeau'
+
+    if rhyme == 'alternate rhyme' and metre == 'iambic tetrameter':
+        return 'ballad stanza'
+
     if rhyme == 'couplets' and metre == 'iambic pentameter':
         return 'heroic couplets'
 
     if metre == 'iambic pentameter':
         return 'blank verse'
 
-    return '???' 
+    return 'unknown form' 
 
 if __name__ == '__main__':
     with open(sys.argv[1]) as f:
-        guess_form(f.read())
-    if not_in_cmu:
-        print("not in CMU dictionary: " + ', '.join([word for word in not_in_cmu]))
+        print(guess_form(f.read(), verbose=True))
