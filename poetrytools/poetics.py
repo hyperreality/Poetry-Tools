@@ -33,6 +33,20 @@ def tokenize(poem):
         tokens.append([elided_d(word) for word in cleaned.strip().split(' ')])
     return tokens
 
+def levenshtein(tocompare, candidates, linebyline=False):
+    z = defaultdict(int)
+    if linebyline == True:
+        for line in tocompare:
+            for v in candidates.items():
+                z[v[0]] += distance(line, v[1])
+    else:
+        num_lines = len(tocompare)
+        for v in candidates.items():
+            expanded = (v[1] * (num_lines // len(v[1]) + 1))[:num_lines]
+            z[v[0]] += distance(tocompare, expanded)
+    best_guess = min(z, key = z.get)
+    return best_guess
+
 def stress(word):
     if word.lower() not in cmu:
         return '1' + '0' * (count_syllables(word) - 1) # provisional logic for adding stress is to stress first syllable only
@@ -121,19 +135,13 @@ def guess_metre(poem):
                         'trochaic tetrameter' : '10101010',
                         'trochaic pentameter' : '1010101010'}
 
-    z = defaultdict(int)
-    for line in joined:
-        for v in possible_metres.items():
-            levenshtein = distance(line, v[1])
-            z[v[0]] += levenshtein
-    guessed_metre = min(z, key = z.get)
+    guessed_metre = levenshtein(joined, possible_metres, linebyline=True)
     return joined, num_lines, line_lengths, guessed_metre
 
 def guess_rhyme_type(poem):
     joined    = ''.join([l for l in rhyme_scheme(poem)])
-    num_lines = len(joined)
 
-    possible_rhyme_types = {
+    possible_rhymes = {
                              'couplets'             : 'aabb ccdd eeff',
                              'alternate rhyme'      : 'abab cdcd efef ghgh',
                              'enclosed rhyme'       : 'abba cddc effe',
@@ -143,25 +151,47 @@ def guess_rhyme_type(poem):
                              'limerick'             : 'aabba',
                              'no rhyme'             : 'XXXXX'}
 
-    z = defaultdict(int)
-    for v in possible_rhyme_types.items():
-        expanded       = (v[1] * (num_lines // len(v[1]) + 1))[ : num_lines]
-        levenshtein    = distance(joined, expanded)
-        z[v[0]]       += levenshtein
-    guessed_rhyme = min(z, key = z.get)
+    guessed_rhyme = levenshtein(joined, possible_rhymes, linebyline=False)
     return joined, guessed_rhyme
+
+def stanza_lengths(rhymescheme):
+    stanzas, j, inspace = [0], 0, False
+    for i in rhymescheme:
+        if i == ' ':
+            if not inspace:
+                j += 1;
+                stanzas += [0];
+                inspace = True
+        else:
+            stanzas[j] = stanzas[j] + 1;
+            inspace = False
+    joined = ','.join(map(str,stanzas)) + ","
+
+    possible_stanzas = {
+                             'sonnet'             : '14,',
+                             'tercets'             : '3,'}
+
+    guessed_stanza = levenshtein(joined, possible_stanzas, linebyline=False)
+    return joined, guessed_stanza
 
 def guess_form(poem, verbose=False):
     def within_ranges(line_properties, ranges):
         if all([ranges[i][0] <= line_properties[i] <= ranges[i][1] for i in range(len(ranges))]):
             return True
 
-    rhyme_scheme_string, rhyme                             = guess_rhyme_type(poem)
-    metrical_scheme_string, num_lines, line_lengths, metre = guess_metre(poem)
+    metrical_scheme, num_lines, line_lengths, metre = guess_metre(poem)
+    rhyme_scheme_string, rhyme = guess_rhyme_type(poem)
+    stanza_length_string, stanza = stanza_lengths(rhyme_scheme_string)
 
     if verbose == True:
-        print(metrical_scheme_string)
-        print(rhyme + " (" + rhyme_scheme_string + ") + " + metre + " = ", end = "")
+        print("Metre: " + ' '.join(metrical_scheme))
+        print("Rhyme scheme: " + rhyme_scheme_string)
+        print("Stanza lengths: " + stanza_length_string)
+        print()
+        print("Closest metre: " + metre)
+        print("Closest rhyme: " + rhyme)
+        print("Closest stanza type: " + stanza)
+        print("Guessed form: ",end="")
 
     if num_lines == 3 and within_ranges(line_lengths, [(4, 6), (6, 8), (4, 6)]):
         return 'haiku'
