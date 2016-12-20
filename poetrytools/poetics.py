@@ -16,16 +16,40 @@ from .countsyl import count_syllables
 with open(os.path.join(os.path.dirname(__file__), 'cmudict/cmudict.json')) as json_file:
     cmu = json.load(json_file)
 
+possible_metres = {
+    'iambic trimeter'     : '010101',
+    'iambic tetrameter'   : '01010101',
+    'iambic pentameter'   : '0101010101',
+    'trochaic tetrameter' : '10101010',
+    'trochaic pentameter' : '1010101010'
+}
+
+possible_rhymes = {
+    'couplets'             : 'aabbccddeeff',
+    'alternate rhyme'      : 'ababcdcdefefghgh',
+    'enclosed rhyme'       : 'abbacddceffe',
+    'rima'                 : 'ababcbcdcdedefefgfghg',
+    'rondeau rhyme'        : 'aabbaaabCaabbaC',
+    'shakespearean sonnet' : 'ababcdcdefefgg',
+    'limerick'             : 'aabba',
+    'no rhyme'             : 'XXXX'
+}
+
+possible_stanzas = {
+    'sonnet'             : '14,',
+    'tercets'            : '3,'
+}
+
 def tokenize(poem):
     """
     Simple tokenizer. Remove or replace unwanted characters, then parse to a list of lists of sentences and words
     """
     tokens = []
 
-    # Characters to replace that might cause problems later on
+    # Problematic characters to replace
     replacements = {'-': ' ', '—': ' ', '\'d': 'ed'}
 
-    for original, replacement in replacements.iteritems():
+    for original, replacement in replacements.items():
         replaced = poem.replace(original, replacement)
     # Keep apostrophes and accented characters, discard everything else
     cleaned = re.sub(r'[^0-9a-zA-Z\u00E0-\u00FC\s\']', '', replaced) 
@@ -33,49 +57,6 @@ def tokenize(poem):
     for line in cleaned.split('\n'):
         tokens.append([word for word in line.strip().split(' ')])
     return tokens
-
-def levenshtein(tocompare, candidates, linebyline=False):
-    z = defaultdict(int)
-    if linebyline == True:
-        for line in tocompare:
-            for v in candidates.items():
-                z[v[0]] += distance(line, v[1])
-    else:
-        num_lines = len(tocompare)
-        for v in candidates.items():
-            expanded = (v[1] * (num_lines // len(v[1]) + 1))[:num_lines]
-            z[v[0]] += distance(tocompare, expanded)
-    best_guess = min(z, key = z.get)
-    return best_guess
-
-def stress(word):
-    """
-    Represent strong and weak stress of a word with a series of 1's and 0's
-    """
-    syllables = getSyllables(word)
-    if syllables:
-        # TODO: Find a better way to handle multiple pronunciations than just using the min
-        min_syllables = min(syllables)
-        pronunciation_string = str(''.join(min_syllables))
-        stress_numbers       = ''.join([x.replace('2', '1') for x in pronunciation_string if x.isdigit()]) # not interested in secondary stress
-        return stress_numbers
-    else:
-        # Provisional logic for adding stress when the word is not in the dictionary is to stress first syllable only
-        return '1' + '0' * (count_syllables(word) - 1) 
-
-def scanscion(poem):
-    """
-    Get stress notation for every line in the poem
-    """
-    line_stresses = []
-    currline      = 0
-
-    for line in poem:
-        line_stresses.append([])
-        [line_stresses[currline].append(stress(word)) for word in line if word]
-        currline += 1
-
-    return line_stresses
 
 def getSyllables(word):
     """
@@ -87,10 +68,44 @@ def getSyllables(word):
     except KeyError:
         return False
 
+def stress(word):
+    """
+    Represent strong and weak stress of a word with a series of 1's and 0's
+    """
+
+    syllables = getSyllables(word)
+
+    if syllables:
+        # TODO: Implement a more advanced way of handling multiple pronunciations than just using the min
+        min_syllables = min(syllables)
+        pronunciation_string = str(''.join(min_syllables))
+        stress_numbers       = ''.join([x.replace('2', '1') for x in pronunciation_string if x.isdigit()]) # not interested in secondary stress
+
+        return stress_numbers
+    else:
+        # Provisional logic for adding stress when the word is not in the dictionary is to stress first syllable only
+        return '1' + '0' * (count_syllables(word) - 1) 
+
+def scanscion(poem):
+    """
+    Get stress notation for every line in the poem
+    """
+    
+    line_stresses = []
+    currline      = 0
+
+    for line in poem:
+        line_stresses.append([])
+        [line_stresses[currline].append(stress(word)) for word in line if word]
+        currline += 1
+
+    return line_stresses
+
 def rhymes(word1, word2, level=2):
     """
     For each word, get a list of various syllabic pronunications. Then check whether the last level number of syllables is pronounced the same. If so, the words probably rhyme
     """
+
     pronunciations = getSyllables(word1)
     pronunciations2 = getSyllables(word2)
 
@@ -105,6 +120,8 @@ def rhyme_scheme(poem):
     """
     Get a rhyme scheme for the poem. For each line, lookahead to the future lines of the poem and see whether last words rhyme.
     """
+
+    # By default, nothing rhymes
     scheme = ['X'] * len(poem)
 
     rhyme_notation = list(ascii_lowercase)
@@ -129,55 +146,77 @@ def rhyme_scheme(poem):
 
     return scheme
 
+def get_lowest(dictionary):
+    """
+    Get the lowest value of a dictionary, returning its key
+    """
+
+    return min(dictionary, key = dictionary.get)
+
+def levenshtein(string, candidates):
+    """
+    Compare a string's Levenshtein distance to each candidate in a dictionary. Expands the length of each candidate to match the length of the compared string
+    Returns the name of the closest match
+    """
+
+    distances = defaultdict(int)
+    num_lines = len(string)
+
+    for k, v in candidates.items():
+        expanded = (v * (num_lines // len(v) + 1))[:num_lines]
+        distances[k] += distance(string, expanded)
+
+    return get_lowest(distances)
+
 def guess_metre(poem):
-    joined       = [''.join(line) for line in scanscion(poem) if line]
-    line_lengths = [len(line) for line in joined]
-    num_lines    = len(joined)
+    """
+    Guess a poem's metre via Levenshtein distance from candidates
+    """
 
-    possible_metres = {
-                        'iambic trimeter'     : '010101',
-                        'iambic tetrameter'   : '01010101',
-                        'iambic pentameter'   : '0101010101',
-                        'trochaic tetrameter' : '10101010',
-                        'trochaic pentameter' : '1010101010'}
+    joined_lines = [''.join(line) for line in scanscion(poem) if line]
+    line_lengths = [len(line) for line in joined_lines]
+    num_lines    = len(joined_lines)
 
-    guessed_metre = levenshtein(joined, possible_metres, linebyline=True)
-    return joined, num_lines, line_lengths, guessed_metre
+    z = defaultdict(int)
+    for line in joined_lines:
+        for metre, notation in possible_metres.items():
+            z[metre] += distance(line, notation)
+
+    guessed_metre = get_lowest(z)
+
+    return joined_lines, num_lines, line_lengths, guessed_metre
 
 def guess_rhyme_type(poem):
-    joined    = ''.join([l for l in rhyme_scheme(poem)])
+    """
+    Guess a poem's rhyme via Levenshtein distance from candidates
+    """
 
-    possible_rhymes = {
-                             'couplets'             : 'aabb ccdd eeff',
-                             'alternate rhyme'      : 'abab cdcd efef ghgh',
-                             'enclosed rhyme'       : 'abba cddc effe',
-                             'rima'                 : 'ababcbcdcdedefefgfghg',
-                             'rondeau rhyme'        : 'aabba aab C aabba C',
-                             'shakespearean sonnet' : 'ababcdcdefefgg',
-                             'limerick'             : 'aabba',
-                             'no rhyme'             : 'XXXXX'}
+    joined_lines = ''.join([l for l in rhyme_scheme(poem) if l])
+    no_blanks = joined_lines.replace(' ', '')
 
-    guessed_rhyme = levenshtein(joined, possible_rhymes, linebyline=False)
-    return joined, guessed_rhyme
+    guessed_rhyme = levenshtein(no_blanks, possible_rhymes)
+    return joined_lines, guessed_rhyme
 
-def stanza_lengths(rhymescheme):
-    stanzas, j, inspace = [0], 0, False
-    for i in rhymescheme:
-        if i == ' ':
-            if not inspace:
-                j += 1;
-                stanzas += [0];
-                inspace = True
+def stanza_lengths(poem):
+    """
+    Returns a comma-delimited string of stanza lengths
+    """
+
+    stanzas = []
+
+    i = 0
+    for line in poem:
+        if line != ['']:
+            i += 1
         else:
-            stanzas[j] = stanzas[j] + 1;
-            inspace = False
-    joined = ','.join(map(str,stanzas)) + ","
+            stanzas.append(str(i))
+            i = 0
+    if i != 0:
+        stanzas.append(str(i))
 
-    possible_stanzas = {
-                             'sonnet'             : '14,',
-                             'tercets'             : '3,'}
+    joined = ','.join(stanzas)
 
-    guessed_stanza = levenshtein(joined, possible_stanzas, linebyline=False)
+    guessed_stanza = levenshtein(joined, possible_stanzas)
     return joined, guessed_stanza
 
 def guess_form(poem, verbose=False):
@@ -189,7 +228,7 @@ def guess_form(poem, verbose=False):
 
     metrical_scheme, num_lines, line_lengths, metre = guess_metre(poem)
     rhyme_scheme_string, rhyme = guess_rhyme_type(poem)
-    stanza_length_string, stanza = stanza_lengths(rhyme_scheme_string)
+    stanza_length_string, stanza = stanza_lengths(poem)
 
     if verbose == True:
         print("Metre: " + ' '.join(metrical_scheme))
