@@ -68,25 +68,30 @@ def scanscion(poem):
 
     return line_stresses
 
-def rhymes(w1, w2, level=2, throwError=False):
-     try:
-         syllables = [' '.join([str(c) for c in lst]) for lst in cmu[w1.lower()]]
-     except KeyError:
-         if throwError == True:
-             raise KeyError(w1 + ' not found in CMU dictionary')
-         return False
-     try:
-         syllables2 = [' '.join([str(c) for c in lst]) for lst in cmu[w2.lower()]]
-     except KeyError:
-         if throwError == True:
-             raise KeyError(w2 + ' not found in CMU dictionary')
-         return False
-     for syllable in syllables:
-         for syllable2 in syllables2:
-             if syllable2[-level:] == syllable[-level:]:
-                 return True
-             else:
-                 return False
+def getSyllables(word):
+    """
+    Look up a word in the CMU dictionary, return a list of syllables
+    """
+
+    try:
+        return(cmu[word.lower()])
+    except KeyError:
+        return False
+
+def rhymes(word1, word2, level=2):
+    """
+    For each word, get a list of various syllabic pronunications. Then check whether the last level number of syllables is pronounced the same. If so, the words probably rhyme
+    """
+    syllables = getSyllables(word1)
+    syllables2 = getSyllables(word2)
+
+    if syllables and syllables2:
+        for syllable in syllables:
+            for syllable2 in syllables2:
+                if syllable2[-level:] == syllable[-level:]:
+                    return True
+                else:
+                    return False
 
 def rhyme_scheme(poem):
     poem = tokenize(poem)
@@ -103,7 +108,7 @@ def rhyme_scheme(poem):
             if scheme[i] == 'X' : # if word is not already part of a rhyme scheme
                 if not word:
                     scheme[currline] = ' '
-                elif rhymes(word, last_words[i], 2, False):                    
+                elif rhymes(word, last_words[i], 2):                    
                     scheme[currline] = scheme[i] = rhyme_notation[currrhyme]
                     rhymed           = True
         if rhymed == True:
