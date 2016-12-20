@@ -1,12 +1,8 @@
 #!/usr/bin/env python
 #-*- coding: utf-8 -*-
 
-# Tools for working with poems
-#
-# Licensed under GPLv2 or later.
-
 from __future__ import print_function
-import json, os, re, sys
+import json, os, re, sys, codecs, unicodedata
 from collections import defaultdict
 from string import ascii_lowercase
 from Levenshtein import distance
@@ -25,34 +21,44 @@ possible_metres = {
 }
 
 possible_rhymes = {
-    'couplets'             : 'aabbccddeeff',
-    'alternate rhyme'      : 'ababcdcdefefghgh',
-    'enclosed rhyme'       : 'abbacddceffe',
-    'rima'                 : 'ababcbcdcdedefefgfghg',
-    'rondeau rhyme'        : 'aabbaaabCaabbaC',
-    'shakespearean sonnet' : 'ababcdcdefefgg',
-    'limerick'             : 'aabba',
-    'no rhyme'             : 'XXXX'
+    'couplets'            : 'aabbccddeeff',
+    'alternate rhyme'     : 'ababcdcdefefghgh',
+    'enclosed rhyme'      : 'abbacddceffe',
+    'rima'                : 'ababcbcdcdedefefgfghg',
+    'rondeau rhyme'       : 'aabbaaabCaabbaC',
+    'shakespearean sonnet': 'ababcdcdefefgg',
+    'limerick'            : 'aabba',
+    'no rhyme'            : 'XXXX'
 }
 
 possible_stanzas = {
-    'sonnet'             : '14,',
-    'tercets'            : '3,'
+    'sonnet'              : '14,',
+    'tercets'             : '3,'
 }
+
+def remove_accents(string):
+    """
+    Removes unicode accents from a string, downgrading to the base character
+    """
+
+    nfkd = unicodedata.normalize('NFKD', string)
+    return u"".join([c for c in nfkd if not unicodedata.combining(c)])
 
 def tokenize(poem):
     """
     Simple tokenizer. Remove or replace unwanted characters, then parse to a list of lists of sentences and words
     """
+
     tokens = []
 
     # Problematic characters to replace
-    replacements = {'-': ' ', '—': ' ', '\'d': 'ed'}
+    replacements = {u'-': u' ', u'—': u' ', u'\'d': u'ed'}
 
     for original, replacement in replacements.items():
         replaced = poem.replace(original, replacement)
-    # Keep apostrophes and accented characters, discard everything else
-    cleaned = re.sub(r'[^0-9a-zA-Z\u00E0-\u00FC\s\']', '', replaced) 
+    replaced = remove_accents(replaced)
+    # Keep apostrophes, discard everything else
+    cleaned = re.sub(r'[^0-9a-zA-Z\s\']', '', replaced)
 
     for line in cleaned.split('\n'):
         tokens.append([word for word in line.strip().split(' ')])
@@ -281,5 +287,6 @@ def guess_form(poem, verbose=False):
     return 'unknown form' 
 
 if __name__ == '__main__':
-    with open(sys.argv[1]) as f:
+    with codecs.open(sys.argv[1], 'r', 'utf-8') as f:
         print(guess_form(f.read(), verbose=True))
+

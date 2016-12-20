@@ -11,21 +11,23 @@ Install with ```python setup.py install```
 
 ```python
 >>> import poetrytools
->>> poetrytools.rhymes("show","hello")
+>>> poetrytools.rhymes('show', 'hello')
 True
 >>> haiku = """savannah dust trails
 ... whistling thorn hovers above
 ... hungry giraffe grows"""
->>> poetrytools.scanscion(haiku)
+>>> poem = poetrytools.tokenize(poem) # need to tokenize the poem first
+>>> poetrytools.scanscion(poem)
 [['010', '1', '1'], ['10', '1', '10', '01'], ['10', '01', '1']]
->>> poetrytools.guess_form(haiku)
+>>> poetrytools.guess_form(poem)
 'haiku'
 >>> limerick = """The limerick packs laughs anatomical
 ... Into space that is quite economical.
 ... But the good ones I've seen
 ... So seldom are clean
 ... And the clean ones so seldom are comical."""
->>> poetrytools.guess_form(limerick, verbose=True)
+>>> poem = poetrytools.tokenize(limerick)
+>>> poetrytools.guess_form(poem, verbose=True)
 Metre: 01001110100 00110110100 100111 11011 10111101100
 Rhyme scheme: aabba
 
@@ -36,7 +38,7 @@ Guessed form: 'limerick'
 
 Requirements
 ------------
-- Python >= 2.7 or Python 3
+- Python 2.7 or Python 3
 - python-Levenshtein==0.12.0
 
 (CMUDict is included as a JSON file in order to avoid importing the behemoth that is NLTK)
