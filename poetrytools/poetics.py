@@ -50,7 +50,7 @@ def levenshtein(tocompare, candidates, linebyline=False):
 
 def stress(word):
     """
-    Represent strong and weak stress of a word by a series of 1's and 0's
+    Represent strong and weak stress of a word with a series of 1's and 0's
     """
     syllables = getSyllables(word)
     if syllables:
@@ -64,8 +64,9 @@ def stress(word):
         return '1' + '0' * (count_syllables(word) - 1) 
 
 def scanscion(poem):
-    poem = tokenize(poem)
-
+    """
+    Get stress notation for every line in the poem
+    """
     line_stresses = []
     currline      = 0
 
@@ -98,41 +99,33 @@ def rhymes(word1, word2, level=2):
             for syllable2 in pronunciations2:
                 if syllable2[-level:] == syllable[-level:]:
                     return True
-                else:
-                    return False
+    return False
 
 def rhyme_scheme(poem):
-    poem = tokenize(poem)
-
-    last_words = [s[-1] for s in poem if s]
-    scheme     = ['X'] * len(last_words)
+    """
+    Get a rhyme scheme for the poem. For each line, lookahead to the future lines of the poem and see whether last words rhyme.
+    """
+    scheme = ['X'] * len(poem)
 
     rhyme_notation = list(ascii_lowercase)
 
-    currline = currrhyme = 0
-    for word in last_words:
-        rhymed = False
-        for i in range(currline + 1, len(last_words)):
-            if scheme[i] == 'X' : # if word is not already part of a rhyme scheme
-                if not word:
-                    scheme[currline] = ' '
-                elif rhymes(word, last_words[i], 2):                    
-                    scheme[currline] = scheme[i] = rhyme_notation[currrhyme]
-                    rhymed           = True
-        if rhymed == True:
-            currrhyme += 1
-        currline += 1
-   
-    # find duplicate lines, important for some forms like rondeau
-    D = defaultdict(list)
-    for lineno, line in enumerate(poem):
-        D[tuple(line)].append(lineno)
-    duplicates = {
-                   k : v for k,
-                   v in D.items() if len(k) > 1 and len(v) > 1}  
-    for num in sorted(duplicates.values()):
-        for n in num:
-            scheme[n] = scheme[n].upper()
+    currrhyme = 0
+
+    for lineno in range(0, len(poem)):
+        for futurelineno in range(lineno + 1, len(poem)):
+            # if next line is not already part of a rhyme scheme
+            if scheme[futurelineno] == 'X':
+                if poem[lineno] == ['']:
+                    # If blank line, represent that in the notation
+                    scheme[lineno] = ' '
+                elif rhymes(poem[lineno][-1], poem[futurelineno][-1]):
+                    scheme[lineno] = scheme[futurelineno] = rhyme_notation[currrhyme]
+                    currrhyme += 1
+
+                    # Capitalise rhyme if the whole line is identical
+                    if poem[lineno] == poem[futurelineno]:
+                        scheme[lineno] = scheme[lineno].upper()
+                        scheme[futurelineno] = scheme[futurelineno].upper()
 
     return scheme
 
@@ -191,6 +184,8 @@ def guess_form(poem, verbose=False):
     def within_ranges(line_properties, ranges):
         if all([ranges[i][0] <= line_properties[i] <= ranges[i][1] for i in range(len(ranges))]):
             return True
+
+    poem = tokenize(poem)
 
     metrical_scheme, num_lines, line_lengths, metre = guess_metre(poem)
     rhyme_scheme_string, rhyme = guess_rhyme_type(poem)
