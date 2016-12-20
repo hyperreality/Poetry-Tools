@@ -12,25 +12,26 @@ from string import ascii_lowercase
 from Levenshtein import distance
 from .countsyl import count_syllables
 
-try:
-    from nltk.corpus import cmudict
-    cmu = cmudict.dict()
-except:
-    with open(os.path.join(os.path.dirname(__file__), 'cmudict/cmudict.json')) as json_file:
-        cmu = json.load(json_file)
-
-def elided_d(word):
-    if word[-2:] == "'d":
-        return word[:-2] + "ed"
-    return word
+# Import CMU dictionary
+with open(os.path.join(os.path.dirname(__file__), 'cmudict/cmudict.json')) as json_file:
+    cmu = json.load(json_file)
 
 def tokenize(poem):
+    """
+    Simple tokenizer. Remove or replace unwanted characters, then parse to a list of lists of sentences and words
+    """
     tokens = []
-    for line in poem.split('\n'):
-        line       = line.replace('-', ' ') # need to find a better tokenizer, but this works for now
-        no_hyphens = line.replace('—', ' ') 
-        cleaned    = re.sub(r'[^0-9a-zA-Z\s\']', '', no_hyphens) # keep apostrophes
-        tokens.append([elided_d(word) for word in cleaned.strip().split(' ')])
+
+    # Characters to replace that might cause problems later on
+    replacements = {'-': ' ', '—': ' ', '\'d': 'ed'}
+
+    for original, replacement in replacements.iteritems():
+        replaced = poem.replace(original, replacement)
+    # Keep apostrophes and accented characters, discard everything else
+    cleaned = re.sub(r'[^0-9a-zA-Z\u00E0-\u00FC\s\']', '', replaced) 
+
+    for line in cleaned.split('\n'):
+        tokens.append([word for word in line.strip().split(' ')])
     return tokens
 
 def levenshtein(tocompare, candidates, linebyline=False):
@@ -48,12 +49,19 @@ def levenshtein(tocompare, candidates, linebyline=False):
     return best_guess
 
 def stress(word):
-    if word.lower() not in cmu:
-        return '1' + '0' * (count_syllables(word) - 1) # provisional logic for adding stress is to stress first syllable only
+    """
+    Represent strong and weak stress of a word by a series of 1's and 0's
+    """
+    syllables = getSyllables(word)
+    if syllables:
+        # TODO: Find a better way to handle multiple pronunciations than just using the min
+        min_syllables = min(syllables)
+        pronunciation_string = str(''.join(min_syllables))
+        stress_numbers       = ''.join([x.replace('2', '1') for x in pronunciation_string if x.isdigit()]) # not interested in secondary stress
+        return stress_numbers
     else:
-        pronunciation_string = str(''.join([a for a in min(cmu[word.lower()])]))
-        stress_numbers       = ''.join([x.replace('2', '1') for x in list(pronunciation_string) if x.isdigit()]) # not interested in secondary stress
-        return stress_numbers   
+        # Provisional logic for adding stress when the word is not in the dictionary is to stress first syllable only
+        return '1' + '0' * (count_syllables(word) - 1) 
 
 def scanscion(poem):
     poem = tokenize(poem)
@@ -82,12 +90,12 @@ def rhymes(word1, word2, level=2):
     """
     For each word, get a list of various syllabic pronunications. Then check whether the last level number of syllables is pronounced the same. If so, the words probably rhyme
     """
-    syllables = getSyllables(word1)
-    syllables2 = getSyllables(word2)
+    pronunciations = getSyllables(word1)
+    pronunciations2 = getSyllables(word2)
 
-    if syllables and syllables2:
-        for syllable in syllables:
-            for syllable2 in syllables2:
+    if pronunciations and pronunciations2:
+        for syllable in pronunciations:
+            for syllable2 in pronunciations2:
                 if syllable2[-level:] == syllable[-level:]:
                     return True
                 else:
