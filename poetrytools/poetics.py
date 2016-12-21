@@ -2,11 +2,12 @@
 #-*- coding: utf-8 -*-
 
 from __future__ import print_function
-import json, os, re, sys, codecs, unicodedata
+import json, os, sys, codecs
 from collections import defaultdict
 from string import ascii_lowercase
 from Levenshtein import distance
 from .countsyl import count_syllables
+from .simpletokenizer import tokenize
 
 # Import CMU dictionary
 with open(os.path.join(os.path.dirname(__file__), 'cmudict/cmudict.json')) as json_file:
@@ -36,34 +37,6 @@ possible_stanzas = {
     'tercets'             : '3,'
 }
 
-def remove_accents(string):
-    """
-    Removes unicode accents from a string, downgrading to the base character
-    """
-
-    nfkd = unicodedata.normalize('NFKD', string)
-    return u"".join([c for c in nfkd if not unicodedata.combining(c)])
-
-def tokenize(poem):
-    """
-    Simple tokenizer. Remove or replace unwanted characters, then parse to a list of lists of sentences and words
-    """
-
-    tokens = []
-
-    # Problematic characters to replace
-    replacements = {u'-': u' ', u'—': u' ', u'\'d': u'ed'}
-
-    for original, replacement in replacements.items():
-        replaced = poem.replace(original, replacement)
-    replaced = remove_accents(replaced)
-    # Keep apostrophes, discard everything else
-    cleaned = re.sub(r'[^0-9a-zA-Z\s\']', '', replaced)
-
-    for line in cleaned.split('\n'):
-        tokens.append([word for word in line.strip().split(' ')])
-    return tokens
-
 def getSyllables(word):
     """
     Look up a word in the CMU dictionary, return a list of syllables
@@ -92,7 +65,7 @@ def stress(word):
         # Provisional logic for adding stress when the word is not in the dictionary is to stress first syllable only
         return '1' + '0' * (count_syllables(word) - 1) 
 
-def scanscion(poem):
+def scanscion(tokenizedPoem):
     """
     Get stress notation for every line in the poem
     """
@@ -100,7 +73,7 @@ def scanscion(poem):
     line_stresses = []
     currline      = 0
 
-    for line in poem:
+    for line in tokenizedPoem:
         line_stresses.append([])
         [line_stresses[currline].append(stress(word)) for word in line if word]
         currline += 1
@@ -122,33 +95,32 @@ def rhymes(word1, word2, level=2):
                     return True
     return False
 
-def rhyme_scheme(poem):
+def rhyme_scheme(tokenizedPoem):
     """
     Get a rhyme scheme for the poem. For each line, lookahead to the future lines of the poem and see whether last words rhyme.
     """
 
     # By default, nothing rhymes
-    scheme = ['X'] * len(poem)
+    scheme = ['X'] * len(tokenizedPoem)
 
     rhyme_notation = list(ascii_lowercase)
 
     currrhyme = 0
 
-    for lineno in range(0, len(poem)):
-        for futurelineno in range(lineno + 1, len(poem)):
+    for lineno in range(0, len(tokenizedPoem)):
+        for futurelineno in range(lineno + 1, len(tokenizedPoem)):
             # if next line is not already part of a rhyme scheme
             if scheme[futurelineno] == 'X':
-                if poem[lineno] == ['']:
+                if tokenizedPoem[lineno] == ['']:
                     # If blank line, represent that in the notation
                     scheme[lineno] = ' '
-                elif rhymes(poem[lineno][-1], poem[futurelineno][-1]):
-                    scheme[lineno] = scheme[futurelineno] = rhyme_notation[currrhyme]
-                    currrhyme += 1
-
+                elif rhymes(tokenizedPoem[lineno][-1], tokenizedPoem[futurelineno][-1]):
                     # Capitalise rhyme if the whole line is identical
-                    if poem[lineno] == poem[futurelineno]:
-                        scheme[lineno] = scheme[lineno].upper()
-                        scheme[futurelineno] = scheme[futurelineno].upper()
+                    if tokenizedPoem[lineno] == tokenizedPoem[futurelineno]:
+                        scheme[lineno] = scheme[futurelineno] = rhyme_notation[currrhyme].upper()
+                    else:
+                        scheme[lineno] = scheme[futurelineno] = rhyme_notation[currrhyme]
+                    currrhyme += 1
 
     return scheme
 
@@ -174,12 +146,12 @@ def levenshtein(string, candidates):
 
     return get_lowest(distances)
 
-def guess_metre(poem):
+def guess_metre(tokenizedPoem):
     """
     Guess a poem's metre via Levenshtein distance from candidates
     """
 
-    joined_lines = [''.join(line) for line in scanscion(poem) if line]
+    joined_lines = [''.join(line) for line in scanscion(tokenizedPoem) if line]
     line_lengths = [len(line) for line in joined_lines]
     num_lines    = len(joined_lines)
 
@@ -192,18 +164,18 @@ def guess_metre(poem):
 
     return joined_lines, num_lines, line_lengths, guessed_metre
 
-def guess_rhyme_type(poem):
+def guess_rhyme_type(tokenizedPoem):
     """
     Guess a poem's rhyme via Levenshtein distance from candidates
     """
 
-    joined_lines = ''.join([l for l in rhyme_scheme(poem) if l])
+    joined_lines = ''.join([l for l in rhyme_scheme(tokenizedPoem) if l])
     no_blanks = joined_lines.replace(' ', '')
 
     guessed_rhyme = levenshtein(no_blanks, possible_rhymes)
     return joined_lines, guessed_rhyme
 
-def stanza_lengths(poem):
+def stanza_lengths(tokenizedPoem):
     """
     Returns a comma-delimited string of stanza lengths
     """
@@ -211,7 +183,7 @@ def stanza_lengths(poem):
     stanzas = []
 
     i = 0
-    for line in poem:
+    for line in tokenizedPoem:
         if line != ['']:
             i += 1
         else:
@@ -225,12 +197,12 @@ def stanza_lengths(poem):
     guessed_stanza = levenshtein(joined, possible_stanzas)
     return joined, guessed_stanza
 
-def guess_form(poem, verbose=False):
+def guess_form(tokenizedPoem, verbose=False):
     def within_ranges(line_properties, ranges):
         if all([ranges[i][0] <= line_properties[i] <= ranges[i][1] for i in range(len(ranges))]):
             return True
 
-    poem = tokenize(poem)
+    poem = tokenize(tokenizedPoem)
 
     metrical_scheme, num_lines, line_lengths, metre = guess_metre(poem)
     rhyme_scheme_string, rhyme = guess_rhyme_type(poem)
@@ -287,6 +259,8 @@ def guess_form(poem, verbose=False):
     return 'unknown form' 
 
 if __name__ == '__main__':
-    with codecs.open(sys.argv[1], 'r', 'utf-8') as f:
-        print(guess_form(f.read(), verbose=True))
-
+    if sys.argv[1]:
+        with codecs.open(sys.argv[1], 'r', 'utf-8') as f:
+            print(guess_form(f.read(), verbose=True))
+    else:
+        print("Please provide a poem to analyse")
