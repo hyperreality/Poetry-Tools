@@ -202,11 +202,9 @@ def guess_form(tokenizedPoem, verbose=False):
         if all([ranges[i][0] <= line_properties[i] <= ranges[i][1] for i in range(len(ranges))]):
             return True
 
-    poem = tokenize(tokenizedPoem)
-
-    metrical_scheme, num_lines, line_lengths, metre = guess_metre(poem)
-    rhyme_scheme_string, rhyme = guess_rhyme_type(poem)
-    stanza_length_string, stanza = stanza_lengths(poem)
+    metrical_scheme, num_lines, line_lengths, metre = guess_metre(tokenizedPoem)
+    rhyme_scheme_string, rhyme = guess_rhyme_type(tokenizedPoem)
+    stanza_length_string, stanza = stanza_lengths(tokenizedPoem)
 
     if verbose == True:
         print("Metre: " + ' '.join(metrical_scheme))
@@ -259,8 +257,10 @@ def guess_form(tokenizedPoem, verbose=False):
     return 'unknown form' 
 
 if __name__ == '__main__':
-    if sys.argv[1]:
+    if len(sys.argv) == 2:
         with codecs.open(sys.argv[1], 'r', 'utf-8') as f:
-            print(guess_form(f.read(), verbose=True))
+            poem = f.read()
+        tokenized = tokenize(poem)
+        print(guess_form(tokenized, verbose=True))
     else:
-        print("Please provide a poem to analyse")
+        print("Please provide a poem to analyse, i.e.: poetics.py poems/sonnet.txt")
