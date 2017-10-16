@@ -18,7 +18,7 @@ class TestPoems(unittest.TestCase):
         self.assertTrue(poetrytools.guess_form(
             self.open_poem('sonnet.txt')) == 'Shakespearean sonnet')
         self.assertTrue(poetrytools.guess_form(self.open_poem(
-            'brokensonnet.txt')) == 'sonnet with trochaic pentameter or irregular meter')
+            'brokensonnet.txt')) == 'sonnet with unusual meter')
 
     def test_blankverse(self):
         self.assertTrue(poetrytools.guess_form(

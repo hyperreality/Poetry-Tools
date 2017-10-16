@@ -37,6 +37,8 @@ POSSIBLE_RHYMES = {
 
 POSSIBLE_STANZAS = {
     'sonnet': '14,',
+    'cinquains': '5,',
+    'quatrains': '4,',
     'tercets': '3,'
 }
 
@@ -103,7 +105,8 @@ def rhymes(word1, word2, level=2):
     if not (pronunciations and pronunciations2):
         return False
 
-    equivalents = {"ER0": "R"}
+    # Work around some limitations of CMU
+    equivalents = {"ER0": "R"} 
     def replace_syllables(syllables):
         return [equivalents[syl] if syl in equivalents else syl for syl in syllables]
 
@@ -181,17 +184,9 @@ def stanza_lengths(tokenized_poem):
     return joined
 
 
-def get_lowest(dictionary):
-    """
-    Get the lowest value of a dictionary, returning its key
-    """
-
-    return min(dictionary, key=dictionary.get)
-
-
 def levenshtein(string, candidates):
     """
-    Compare a string's Levenshtein distance to each candidate in a dictionary. Expands the length of each candidate to match the length of the compared string
+    Compare a string's Levenshtein distance to each candidate in a dictionary. 
     Returns the name of the closest match
     """
 
@@ -199,10 +194,21 @@ def levenshtein(string, candidates):
     num_lines = len(string)
 
     for k, v in candidates.items():
-        expanded = (v * (num_lines // len(v) + 1))[:num_lines]
-        distances[k] += distance(string, expanded)
+        expanded = False
+        # Expands the length of each candidate to match the length of the compared string
+        if len(v) != len(string):
+            v = (v * (num_lines // len(v) + 1))[:num_lines]
+            expanded = True
 
-    return get_lowest(distances)
+        edit_distance = distance(string, v)
+
+        # If we expanded the candidate, then it is a worse match than what we have already
+        if edit_distance in distances and expanded:
+            continue
+
+        distances[distance(string, v)] = k
+
+    return distances[min(distances)]
 
 
 def guess_metre(tokenized_poem):
@@ -214,12 +220,11 @@ def guess_metre(tokenized_poem):
     line_lengths = [len(line) for line in joined_lines]
     num_lines = len(joined_lines)
 
-    z = defaultdict(int)
+    metres = []
     for line in joined_lines:
-        for metre, notation in POSSIBLE_METRES.items():
-            z[metre] += distance(line, notation)
+        metres.append(levenshtein(line, POSSIBLE_METRES))
 
-    guessed_metre = get_lowest(z)
+    guessed_metre = max(zip((metres.count(item) for item in set(metres)), set(metres)))[1]
 
     return joined_lines, num_lines, line_lengths, guessed_metre
 
@@ -229,7 +234,7 @@ def guess_rhyme_type(tokenized_poem):
     Guess a poem's rhyme via Levenshtein distance from candidates
     """
 
-    joined_lines = ''.join([l for l in rhyme_scheme(tokenized_poem) if l])
+    joined_lines = ''.join(rhyme_scheme(tokenized_poem))
     no_blanks = joined_lines.replace(' ', '')
 
     guessed_rhyme = levenshtein(no_blanks, POSSIBLE_RHYMES)
@@ -286,7 +291,7 @@ def guess_form(tokenized_poem, verbose=False):
     if num_lines == 14:
         if metre == 'iambic pentameter' and rhyme == 'shakespearean sonnet' or rhyme == 'alternate rhyme':
             return 'Shakespearean sonnet'
-        return 'sonnet with ' + metre + ' or irregular meter'
+        return 'sonnet with unusual meter'
 
     if num_lines == 15:
         return 'rondeau'
@@ -294,17 +299,17 @@ def guess_form(tokenized_poem, verbose=False):
     if rhyme == 'alternate rhyme' and metre == 'iambic tetrameter':
         return 'ballad stanza'
 
-    if rhyme == 'couplets' and metre == 'iambic pentameter':
-        return 'heroic couplets'
-
     if metre == 'iambic pentameter':
+        if rhyme == 'couplets' or rhyme == 'shakespearean sonnet':
+            return 'heroic couplets'
+        if rhyme == 'alternate rhyme':
+            return 'Sicilian quatrain'
         return 'blank verse'
 
     return 'unknown form'
 
 
 if __name__ == '__main__':
-    print(rhymes("young", "song"))
     if len(sys.argv) == 2:
         with codecs.open(sys.argv[1], 'r', 'utf-8') as f:
             poem = f.read()
