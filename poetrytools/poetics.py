@@ -127,27 +127,34 @@ def rhyme_scheme(tokenized_poem):
     Get a rhyme scheme for the poem. For each line, lookahead to the future lines of the poem and see whether last words rhyme.
     """
 
+    num_lines = len(tokenized_poem)
+
     # By default, nothing rhymes
-    scheme = ['X'] * len(tokenized_poem)
+    scheme = ['X'] * num_lines
 
     rhyme_notation = list(ascii_lowercase)
+    currrhyme = -1 # Index into the rhyme_notation
 
-    currrhyme = 0
-
-    for lineno in range(0, len(tokenized_poem)):
-        for futurelineno in range(lineno + 1, len(tokenized_poem)):
+    for lineno in range(0, num_lines):
+        matched = False
+        for futurelineno in range(lineno + 1, num_lines):
             # If next line is not already part of a rhyme scheme
             if scheme[futurelineno] == 'X':
-                if tokenized_poem[lineno] == ['']:
-                    # If blank line, represent that in the notation
+                base_line = tokenized_poem[lineno]
+                current_line = tokenized_poem[futurelineno]
+
+                if base_line == ['']: # If blank line, represent that in the notation
                     scheme[lineno] = ' '
-                elif rhymes(tokenized_poem[lineno][-1], tokenized_poem[futurelineno][-1]):
-                    # Capitalise rhyme if the whole line is identical
-                    if tokenized_poem[lineno] == tokenized_poem[futurelineno]:
+
+                elif rhymes(base_line[-1], current_line[-1]):
+                    if not matched: # Increment the rhyme notation
+                        matched = True
+                        currrhyme += 1
+
+                    if base_line == current_line: # Capitalise rhyme if the whole line is identical
                         scheme[lineno] = scheme[futurelineno] = rhyme_notation[currrhyme].upper()
                     else:
                         scheme[lineno] = scheme[futurelineno] = rhyme_notation[currrhyme]
-                    currrhyme += 1
 
     return scheme
 
@@ -297,6 +304,7 @@ def guess_form(tokenized_poem, verbose=False):
 
 
 if __name__ == '__main__':
+    print(rhymes("young", "song"))
     if len(sys.argv) == 2:
         with codecs.open(sys.argv[1], 'r', 'utf-8') as f:
             poem = f.read()
