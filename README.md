@@ -41,5 +41,9 @@ Closest rhyme: limerick
 Guessed form: 'limerick'
 ```
 
-(CMUDict is included as a JSON file in order to avoid importing the behemoth that is NLTK)
+Notes
+------------
+
+- For various reasons this library currently only works for short poems; the longer the poem is, the more inaccurate it gets.
+- CMUDict is included as a JSON file in order to avoid importing the behemoth that is NLTK.
 
