@@ -5,13 +5,12 @@ def readme():
         return f.read()
 
 setup(name='poetrytools',
-      version='0.1',
-      description='Functions for working with poetry',
+      version='0.2',
+      description='Analyse rhyme scheme, metre and form of poems',
       long_description=readme(),
       author='L Tennant',
-      author_email='l.tennant@rocketmail.com',
       url='http://github.com/hyperreality/Poetry-Tools',
-      license='GPL',
+      license='MIT',
       packages=['poetrytools'],
       install_requires=['python-levenshtein'],
       include_package_data=True
