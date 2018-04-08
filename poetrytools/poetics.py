@@ -62,8 +62,8 @@ def stress(word):
     syllables = get_syllables(word)
 
     if syllables:
-        # TODO: Implement a more advanced way of handling multiple pronunciations than just using the min
-        pronunciation_string = str(''.join(min(syllables)))
+        # TODO: Implement a more advanced way of handling multiple pronunciations than just picking the first
+        pronunciation_string = ''.join(syllables[0])
         # Not interested in secondary stress
         stress_numbers = ''.join([x.replace('2', '1')
                                   for x in pronunciation_string if x.isdigit()])
