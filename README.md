@@ -7,8 +7,8 @@ Poetry-Tools
 
 Requirements
 ------------
-- Python 2.7 or Python 3
-- python-Levenshtein==0.12.0
+- Python >= 3.5
+- python-Levenshtein >= 0.12.0
 
 Examples
 ------------
